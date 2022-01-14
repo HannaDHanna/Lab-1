@@ -1,0 +1,434 @@
+# load packages
+
+library(tidyverse)
+library(psych)
+library(gridExtra)
+library(pscl)
+library(lmtest)
+library(dominanceanalysis)
+library(dplyr)
+install.packages("questionr")
+library(questionr)
+                                  
+# upload titanic data
+                                  
+data_titanic = read.csv("Titanic - training set.csv")
+                                  
+# look at the data
+                                  
+summary(data_titanic)
+
+view(data_titanic)
+                                  
+sapply(data_titanic, function(x) length(unique(x)))
+
+# The cabin variable has blanks in it, even though I'm not using this variable I will convert all the blanks in the data into NA's, this will make sure that we catch all the NA's in the dataset
+
+data_titanic[data_titanic==""] <- NA
+
+# Look how many NA's that are in the data 177 NA's in age, 687 NA's in cabin and 2 NA's in embarked
+
+colSums(is.na(data_titanic))
+
+#177 NA's in age, 687 NA's in cabin and 2 NA's in embarked
+
+# Drop NA (remove) them from the variables
+
+data_titanic<-data_titanic %>% 
+  drop_na(Embarked)
+
+data_titanic<- data_titanic %>% 
+  drop_na(Age) 
+
+data_titanic_2<- data_titanic_2 %>% 
+  drop_na(Cabin) 
+
+# Make sex into a factor instead of character
+
+data_titanic$Sex<- as.factor(data_titanic$Sex)
+
+# Make Pclass into a factor
+
+data_titanic$Pclass<- as.factor(data_titanic$Pclass)
+
+#make embarked into a factor
+
+data_titanic$Embarked<- as.factor(data_titanic$Embarked)
+
+# View that it is right
+
+class(data_titanic$Sex)
+
+class(data_titanic$Pclass)
+
+# Can make a subset of the data if you know what varibles you want to use
+#  data_titanic<-subset(data_titanic, select = c(2,3,4,5,6,7,8,10))
+
+# Creating a new varible called, FamSize that has a varible of which is the parent/child and Sibling/spouse varible together. familysize 
+
+data_titanic$FamSize <- data_titanic$SibSp + data_titanic$Parch + 1
+view(data_titanic)
+data_titanic_2<- data_titanic_2 %>% 
+  drop_na(FamGroup) 
+
+# Also creating one called FamGroup which just says how big the family is but in factor levels of induvidual, samll and large
+
+data_titanic$FamGroup[data_titanic$FamSize == 1] <- 'Individual' 
+data_titanic$FamGroup[data_titanic$FamSize < 4 & data_titanic$FamSize > 1] <- 'small' 
+data_titanic$FamGroup[data_titanic$FamSize > 4] <- 'large' 
+data_titanic$FamGroup <- as.factor(data_titanic$FamGroup)
+view(data_titanic$FamGroup)
+
+# Remaking the age varible to diffrent age levels instead of acual age, to help understand what age groups had better chances of survival in general
+
+data_titanic<- data_titanic %>% 
+  drop_na(Age) 
+
+data_titanic[(data_titanic['Age'] <= 11), 'Age'] = 0
+data_titanic[(data_titanic['Age'] > 11) & (data_titanic['Age'] <= 18), 'Age'] = 0
+data_titanic[(data_titanic['Age'] > 18) & (data_titanic['Age'] <= 22), 'Age'] = 1
+data_titanic[(data_titanic['Age'] > 22) & (data_titanic['Age'] <= 27), 'Age'] = 1
+data_titanic[(data_titanic['Age'] > 27) & (data_titanic['Age'] <= 33), 'Age'] = 2
+data_titanic[(data_titanic['Age'] > 33) & (data_titanic['Age'] <= 40), 'Age'] = 2
+data_titanic[(data_titanic['Age'] > 40) & (data_titanic['Age'] <= 66), 'Age'] = 3
+data_titanic[ data_titanic['Age'] > 66, 'Age'] = 3
+
+view(data_titanic$Age)
+data_titanic$Age<- as.numeric(data_titanic$Age)
+
+data_titanic$Age<- as.factor(data_titanic$Age)
+
+# Calculating how many ppl who survied overall
+
+overall.rate.of.survival = sum(data_titanic$Survived == 1)/length(data_titanic$Survived)
+cat("Fraction of ppl who survived = ", format(overall.rate.of.survival))
+                                  
+# Fraction of ppl who survived =  0.3838384
+                                  
+# Calcutlating the fraction of ppl who died
+                                  
+overall.rate.of.died = sum(data_titanic$Survived == 0)/length(data_titanic$Survived)
+cat("Fraction of ppl who died = ", format(overall.rate.of.died))
+                                  
+# Fraction of ppl who died =  0.6161616
+                                  
+male.overall.rate.of.survival = sum((data_titanic$Survived == 1) &(data_titanic$Sex == "male"))/sum(data_titanic$Sex == "male")
+cat("Fraction of men who survived = ", format(male.overall.rate.of.survival))
+                                  
+# Fraction of men who survived =  0.1889081
+                                  
+women.overall.rate.of.survival = sum((data_titanic$Survived == 1) &(data_titanic$Sex == "female"))/sum(data_titanic$Sex == "female")
+cat("Fraction of women who survived = ", format(women.overall.rate.of.survival))
+                                  
+# Fraction of women who survived =  0.7420382
+                                  
+Pclass1.rate.of.survival = sum((data_titanic$Survived == 1) & (data_titanic$Pclass == 1))/sum(data_titanic$Pclass == 1)
+cat("Fraction of class 1 pass. who survived = ", format(Pclass1.rate.of.survival))
+                                  
+# Fraction of class 1 pass. who survived =  0.6296296
+                                  
+Pclass3.rate.of.survival = sum((data_titanic$Survived == 1) & (data_titanic$Pclass == 3))/sum(data_titanic$Pclass == 3)
+cat("Fraction of class 3 pass. who survived = ", format(Pclass3.rate.of.survival, digits = 3))
+                                  
+# Fraction of class 3 pass. who survived =  0.242
+                                  
+# How many survived in total and how many died
+
+prop.table(table(data_titanic$Survived))  
+                                  
+#Died= 0.6161616 Survived= 0.3838384
+                                  
+# How many ppl are in each passenger class
+                                  
+prop.table(table(data_titanic$Pclass)) 
+                                  
+# How many women and men are there onboard the ship
+                                  
+prop.table(table(data_titanic$Sex))
+                                  
+# How many men and women who survived
+                                  
+                                  data_titanic %>%
+                                    ggplot() +
+                                    aes(x = Survived, fill = Sex) +
+                                    geom_bar()
+                                  
+# How many of the ppl per passenger-class that survived
+                                  
+                                  data_titanic %>%
+                                    ggplot() +
+                                    aes(x = Survived, fill = Pclass) +
+                                    geom_bar()
+                                  
+# How did familysize impact chances of survival
+                                  
+                                  ggplot(data_titanic_2[1:891,], aes(x = FamSize, fill = factor(Survived))) +
+                                    geom_bar(stat='count', position='dodge') +
+                                    scale_x_continuous(breaks=c(1:11)) +
+                                    labs(x = 'Family Size')+ ggtitle("Family")
+                                  
+# Visualizing the relationship between parent child and survival chances
+                                  
+                                  ggplot(data_titanic_2[1:891,], aes(x = Parch, fill = factor(Survived))) +
+                                    geom_bar(stat='count', position='dodge') +
+                                    scale_x_continuous(breaks=c(1:11)) +
+                                    labs(x = 'Parch')+ ggtitle("Parch")
+                                  
+# Spouse and sibling on survival rates
+                                  
+                                  ggplot(data_titanic_2[1:891,], aes(x = SibSp, fill = factor(Survived))) +
+                                    geom_bar(stat='count', position='dodge') +
+                                    scale_x_continuous(breaks=c(1:11)) +
+                                    labs(x = 'SibSp')+ ggtitle("SibSp")
+                                 
+# Age and survival rates
+                                  
+                                  ggplot(data_titanic_2[1:891,], aes(x = Age, fill = factor(Survived))) +
+                                    geom_bar(stat='count', position='dodge') +
+                                    scale_x_continuous(breaks=c(1:11)) +
+                                    labs(x = 'Age')+ ggtitle("Age")
+                                  
+
+                                  
+# Look at the data again
+                                  
+                                  describe(data_titanic)
+                                  
+                                  
+# A ggplot vizulizing how many died and survived by gender and passenger class, in %
+                                  
+                                  data_titanic %>%
+                                    ggplot( aes(Sex)) +
+                                    facet_wrap(~Pclass) +
+                                    geom_bar(aes(y = (..count..)/sum(..count..), fill=factor(Survived)), stat= "count")+
+                                    geom_text(aes(label = scales::percent(round((..count..)/sum(..count..),2)),
+                                                  y= ((..count..)/sum(..count..))), stat="count",
+                                              vjust = -.25)
+                              
+                                  
+                                  
+# What we learn from this is that being a female you are more likely to survive and being on the 3:rid level of passenger class you are not very likely to survive in comparison to the two other passenger classes
+                                  
+# Logistic regression model, survived as y and sex, pclass, embarked, parent/child, Sbiling/spouse as x.
+                                  
+model.1 <- glm(Survived ~ Sex + Pclass + Parch + Age + SibSp + FamGroup, family = binomial(link = 'logit'), data = data_titanic)
+                                  
+as.factor(data_titanic$Pclass)
+
+# AIC: 618.67
+                                  
+pR2(model.1)
+                                  
+summary(model.1)
+
+#llh            llhNull           G2     McFadden         r2ML         r2CU 
+#-298.3355370 -459.9050588  323.1390436    0.3513106    0.3752243    0.5085299 
+                                  
+# Logistic regression model with more varibles
+                                  
+
+# Log odds
+
+predict(model.1)
+                                  
+# If we want to know the odds of surviving for each variable, compared to the reference category, basically the ratio of probability to the other group
+                                  
+exp(model.1)
+                                  
+# The odds ratios are of model 2
+                                  
+exp(model.1$coefficients)
+                                  
+#(Intercept)       Sexmale       Pclass2       Pclass3         Parch          Age1          Age2          Age3         SibSp FamGrouplarge FamGroupsmall 
+#36.06855797    0.06981441    0.24748084    0.08598581    1.64626940    0.51126210    0.41226423    0.20213187    1.13337009    0.03240274    0.76567321 
+                                  
+summary(model.1)
+                                  
+                                  
+# Calculate log odds for one person
+                                  
+3.5854 +-2.4536*1+-0.4985 *1+-0.6709*1+-0.2670 *1 #log odds of kate without leo ( her log odds of survival)
+                                  
+3.5854  +-2.4536 *1+0.4985*1+-0.6709*1 + 0.1252*1 + -0.2670*1#log odds of kate with leo
+                                  
+3.5854 +-2.4536 *1+0.4985*1+-0.3580*1+ -0.2670  #log odds of sue without leo
+
+3.5854 +-2.4536 *1+0.4985*2+-0.3580*1+ -0.2670    # sue with leo              
+                                  
+# Convert logg odd to odds ( sue with leo)
+                                  exp(0.8176)
+                                  
+# Conver logg odd to odds ( sue without leo)
+                                  exp(-0.3046)
+                                  
+#Convert logg odds for kate without leo
+                                  exp(0.5497)
+                                  
+# Convert logg odds for kate (to odds ) with leo  
+                                  exp(0.7645)
+# Calculate the probability 
+                                  
+0.7374183/(1+0.7374183) # 42%, Kates' chances of survival without Leo #
+                                  
+2.265057/(1+2.265057) # 69% chance of Kates' suriviving if Leo was with her #
+                                  
+1.0053/(1+1.0053) # 50% chance of survival if you are sue, without Leo #
+                                  
+1.5038/(1+1.5038) # 60% sue chances of survival with Leo #
+                                  
+
+#Look at how well the model can predict outcome
+# First drop NA's, just to make sure
+                                  
+                                  data_titanic<-data_titanic %>% 
+                                    drop_na(Embarked)
+                                  
+                                  data_titanic<- data_titanic %>% 
+                                    drop_na(Age) 
+                                  
+                                  
+                                  colSums(is.na(data_titanic_2))
+                                  view(data_titanic_2)
+                                  
+# Make a null model to compear my model to, mine should predic better than the null model
+                                  
+                                  Null_model = glm(data_titanic$Survived ~ 1, family = binomial(), data = data_titanic)	
+                                  
+                                  summary(Null_model)
+                                  
+                                  head(predict(Null_model))
+                                  
+                                  
+# See how many correct predictions it can make
+                                  
+                                  data_titanic = data_titanic  %>% 	
+                                    mutate(pred_model_2 = predict(model.1)) %>% 	
+                                    mutate(pred_model_2 = case_when(pred_model_2 <= 0 ~ 0,	
+                                                                    pred_model_2 > 0 ~ 1))
+# For the null-model
+                                  
+                                  data_titanic = data_titanic  %>% 	
+                                    mutate(pred_model_null = predict(Null_model)) %>% 	
+                                    mutate(pred_model_null = case_when(pred_model_null <= 0 ~ 0,	
+                                                                       pred_model_null > 0 ~ 1))
+                                  
+                                  summary(data_titanic$pred_model_2)
+                                  
+                                  data_titanic = data_titanic %>%	
+                                    mutate(correct_prediction_2 = case_when(pred_model_2 == Survived ~ "correct",	
+                                                                          pred_model_2 != Survived ~ "incorrect"))
+                                  summary(data_titanic_2$correct_prediction_2)
+                                  
+                                  
+# for the null-model
+                                  
+                                  data_titanic = data_titanic %>%	
+                                    mutate(correct_prediction_null = case_when(pred_model_null == Survived ~ "correct",	
+                                                                               pred_model_null != Survived ~ "incorrect"))
+                                  
+# Overall correct predictions of my model
+                                  
+                                  data_titanic %>%	
+                                    group_by(correct_prediction_2) %>%	
+                                    summarise(count = n()) %>%	
+                                    mutate(freq = count / sum(count))	
+                                  
+# Null model, over all correct predictions prediction
+                                  
+                                  data_titanic %>%	
+                                    group_by(correct_prediction_null) %>%	
+                                    summarise(count = n()) %>%	
+                                    mutate(freq = count / sum(count))	
+                                  
+
+# Correct predictions of the people who survived, predictions by my model
+                                  
+                                  data_titanic %>%	
+                                    filter(Survived == 1) %>% 	
+                                    group_by(correct_prediction_2) %>%	
+                                    summarise(count = n()) %>%	
+                                    mutate(freq = count / sum(count))	
+                                  
+# Null model
+                                  
+                                  data_titanic %>%	
+                                    filter(Survived == 1) %>% 	
+                                    group_by(correct_prediction_null) %>%	
+                                    summarise(count = n()) %>%	
+                                    mutate(freq = count / sum(count))	
+                                 
+# correctly categorized as having not having survived 	
+                                  
+                                  data_titanic %>%	
+                                    filter(Survived == 0) %>% 	
+                                    group_by(correct_prediction_2) %>%	
+                                    summarise(count = n()) %>%	
+                                    mutate(freq = count / sum(count))	
+                                  
+# Null model
+                                  data_titanic %>%	
+                                    filter(Survived == 0) %>% 	
+                                    group_by(correct_prediction_null) %>%	
+                                    summarise(count = n()) %>%	
+                                    mutate(freq = count / sum(count))	
+                                  
+# Likelihood ratio test, comparing my model with the null model
+                                  
+                                  lrtest(Null_model,model.1)                               
+                                  
+# AIC of my model and the null model
+                                  
+                                  AIC(Null_model, model.1) 
+                                  
+ # Confidenc intervals of 95%
+                                  confint(model.1)
+                                  
+ # odds ratio
+                                  odds.ratio(model.1)
+                                  
+# Vizulastaion of my model
+                                  modelsummary::msummary(model.1)
+                                  summary(model.1)
+                                  library(modelsummary)
+                                  
+                                  msummary(list(model.1), # List the models to include
+                                           stars = TRUE) 
+                                  
+                              
+
+# model.2 <- glm(Survived ~ Sex + Pclass + Embarked + Parch + SibSp + Age + FamGroup, family = binomial(link = 'logit'), data = data_titanic)
+
+
+
+
+# What is the most influecial varible, this I test by taking away a varible and then seeing how the R^2 chages. The varible that changes the R^2 the most is sex.
+
+model_a <- glm(Survived ~ Pclass + Parch + Age + SibSp + FamGroup, family = binomial(link = 'logit'), data = data_titanic)
+summary(model_a)
+
+pR2(model_a)
+#         llh      llhNull           G2     McFadden         r2ML         r2CU 
+#-381.8490486 -459.9050588  156.1120205    0.1697220    0.2032683    0.2754833
+
+# Now add sex
+
+model_b <- glm(Survived ~ Sex+ Pclass + Parch + Age + SibSp + FamGroup, family = binomial(link = 'logit'), data = data_titanic)
+summary(model_b)
+
+pR2(model_b)
+
+#          llh      llhNull           G2     McFadden         r2ML         r2CU 
+# -298.3355370 -459.9050588  323.1390436    0.3513106    0.3752243    0.5085299
+
+model_c <- glm(Survived ~ Sex + Parch + Age + SibSp + FamGroup, family = binomial(link = 'logit'), data = data_titanic)
+summary(model_c)
+
+pR2(model_c)
+#  llh      llhNull           G2     McFadden         r2ML         r2CU 
+# -339.2994956 -459.9050588  241.2111264    0.2622401    0.2960922    0.4012847 
+
+ model_d <- glm(Survived ~ Sex + Parch + Age + SibSp + FamGroup + Pclass, family = binomial(link = 'logit'), data = data_titanic)
+pR2(model_d)
+
+model_e <- glm(Survived ~ Sex + Parch + SibSp + FamGroup + Pclass, family = binomial(link = 'logit'), data = data_titanic)
+pR2(model_e)
