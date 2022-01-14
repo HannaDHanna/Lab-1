@@ -1,0 +1,132 @@
+# Lab 4 structural equation model 
+
+# Load packages
+
+library(lavaan) 
+library(semPlot) 
+library(semptools)
+library(tidyverse) 
+library(CompQuadForm) 
+library(ICS) 
+library(mvtnorm)
+
+# Dataset	
+
+library(psychTools) 
+
+my_data = holzinger.swineford 
+
+# view the data
+
+view(my_data)
+
+str(my_data)
+
+colSums(is.na(my_data)) # There are some NAs' but I won't remove them since I don't think I'll be using those varibles :)
+
+unique(my_data)
+
+
+# Structural equation model 
+# My theoretical model: three underlying factors are influencing the mental ability test scores. 
+
+# Latent factor: Visual perception ability -> Test scores. Mesured by t01_visperc, t02_cubes, t03_frmbord, and t04_lozenges
+
+# Latent factor: Verbal ability -> Test scores. Measured by t06_paracomp, t07_sentcomp, and t09_wordmean. 
+
+# Latent factor: Processing speed -> test scores. Measured by t10_addition t12_countdot, and t13_sccaps.
+
+######## Seems to be a measurement model.
+
+# The latent factor correlate with each other.
+
+# First a test drive with a smaller model :)
+
+model_SEM <- '	
+    Visual_perception_ability =~ t01_visperc + t02_cubes + t03_frmbord + t04_lozenges
+
+'	
+fit <- sem(model_SEM, data = my_data)	
+
+plot = semPaths(fit, label.scale=F, nCharNodes = 8,	
+                sizeMan2=3.5, sizeMan=10, asize=3, edge.color="black", residuals = F, fixedStyle = 1)	
+
+# Now the actual one :)
+
+model_A <- '	
+    Visual_perception_ability =~ t01_visperc + t02_cubes + t03_frmbord + t04_lozenges
+    Verbal_ability =~ t06_paracomp + t07_sentcomp + t09_wordmean
+    Processing_speed =~ t10_addition + t12_countdot + t13_sccaps
+
+'	
+
+plot_2 = semPaths(fit_2, label.scale=F, nCharNodes = 8,	
+                sizeMan2=3.5, sizeMan=10, asize=3, edge.color="black", residuals = F, fixedStyle = 1)	
+
+
+# Right now we are using the Maximum likelihood estimator, but this can only be used if the data used in the model doesn't violate the multivariate normal distribution. 
+# So now this needs to be checked.
+
+
+mvnorm.kur.test(my_data[,c("t01_visperc", "t02_cubes", "t03_frmbord", "t04_lozenges", "t06_paracomp", "t07_sentcomp", "t09_wordmean", "t10_addition", "t12_countdot", "t13_sccaps")])	
+
+# W = 38.105, w1 = 0.38889, df1 = 54.00000, w2 = 0.66667, df2 = 1.00000, p-value = 0.0004786
+
+mvnorm.skew.test(my_data[,c("t01_visperc", "t02_cubes", "t03_frmbord", "t04_lozenges", "t06_paracomp", "t07_sentcomp", "t09_wordmean", "t10_addition", "t12_countdot", "t13_sccaps")])	
+
+# U = 24.84, df = 10, p-value = 0.005657
+
+# The test for multivariate normal distribution are assessed through the p-value. If they are significant, lower than 0.05 it indicates that the multivariate normal distribution is violated.
+# The p-values of both tests are  significant. This means we can't use the default estimatior, ML but have to try another one.
+
+# # Let's look at the SEM-model with a confidence interval of 95% and using the ML estimator with robust SE and test statistics
+fit1_MLM <- sem(model_A, data = my_data, estimator = "MLM")
+
+summary(fit1_MLM, fit.measures = T, ci= 0.95)	
+
+# New model
+
+# Latent factor: Processing speed -> t10_addition and t12_countdot 
+
+# I'm adding a correlation between the two manifest variables and then the other things that were created in the other function
+
+model_B <- '	
+    Visual_perception_ability1 =~ t01_visperc + t02_cubes + t03_frmbord + t04_lozenges
+    Verbal_ability1 =~ t06_paracomp + t07_sentcomp + t09_wordmean
+    Processing_speed1 =~ t10_addition + t12_countdot + t13_sccaps
+     t12_countdot ~~ t10_addition
+'	
+
+fit2_MLM <- sem(model_B, data = my_data, estimator = "MLM")
+
+summary(fit2_MLM,ci= 0.95, fit.measures = T, standardized= T, rsquare = T)
+summary(fit2_MLM,ci= 0.95, standardized= T)
+
+
+semPaths(fit2_MLM, fixedStyle = 1, label.scale=F, nCharNodes = 0,	
+                  sizeMan2=5, sizeMan=15, asize=3, whatLabels = "est")
+
+semPaths(fit2_MLM, whatLabels = "est")
+
+# Degrees of freedom: Model Test User Model: 31
+
+# Since I'm are using the same varibles as in out last model we don't have to check for normality again and we keep using the robust with our ML esitamtior becuse of the violation of the normality function.
+
+# The Tucker-Lewis Index (TLI) is 1.001.
+# Comparative Fit Index (CFI) is 1.000.
+
+# Alright, now compare model A to model B.
+
+# # This can be done with the AIC.
+# AIC of model B is 3858.704. AIC of model A is 3883.401. The AIC is better than in model B than model A, beacuse it's lower.
+
+anova(fit1_MLM, fit2_MLM)
+
+# Calculate the effects on a manifest varible
+# (b*a)+c
+
+0.31 # direct effects
+0.31+(0.23*0.38) # total effect
+(0.23*0.38) # indirect effect
+
+# the direct effects and the indirect effects would increase making the total effect bigger. Note that these are unstandardized estimates.
