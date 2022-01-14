@@ -1,0 +1,579 @@
+# Load data
+
+data_animals= read_csv("animalrights.csv")
+
+view(data_animals)
+
+# Load packages 
+
+library(GGally)
+library(corrr) 
+library(ggcorrplot)
+library(FactoMineR)	
+library(factoextra) 
+library(paran) 
+
+library(psych) 
+library(car)	
+library(GPArotation) 	
+library(MVN) 
+library(ICS) 
+library(tidyverse) 
+library(mvtnorm)
+library(tidyverse)
+
+# Load custom functions	
+
+fviz_loadnings_with_cor <- function(mod, axes = 1, loadings_above = 0.4){	
+  require(factoextra)	
+  require(dplyr)	
+  require(ggplot2)	
+  
+  
+  
+  if(!is.na(as.character(mod$call$call)[1])){	
+    if(as.character(mod$call$call)[1] == "PCA"){	
+      contrib_and_cov = as.data.frame(rbind(mod[["var"]][["contrib"]], mod[["var"]][["cor"]]))	
+      
+      vars = rownames(mod[["var"]][["contrib"]])	
+      attribute_type = rep(c("contribution","correlation"), each = length(vars))	
+      contrib_and_cov = cbind(contrib_and_cov, attribute_type)	
+      contrib_and_cov	
+      
+      plot_data = cbind(as.data.frame(cbind(contrib_and_cov[contrib_and_cov[,"attribute_type"] == "contribution",axes], contrib_and_cov[contrib_and_cov[,"attribute_type"] == "correlation",axes])), vars)	
+      names(plot_data) = c("contribution", "correlation", "vars")	
+      
+      plot_data = plot_data %>% 	
+        mutate(correlation = round(correlation, 2))	
+      
+      plot = plot_data %>% 	
+        ggplot() +	
+        aes(x = reorder(vars, contribution), y = contribution, gradient = correlation, label = correlation)+	
+        geom_col(aes(fill = correlation)) +	
+        geom_hline(yintercept = mean(plot_data$contribution), col = "red", lty = "dashed") + scale_fill_gradient2() +	
+        xlab("variable") +	
+        coord_flip() +	
+        geom_label(color = "black", fontface = "bold", position = position_dodge(0.5))	
+      
+      
+    }	
+  } else if(!is.na(as.character(mod$Call)[1])){	
+    
+    if(as.character(mod$Call)[1] == "fa"){	
+      loadings_table = mod$loadings %>% 	
+        matrix(ncol = ncol(mod$loadings)) %>% 	
+        as_tibble() %>% 	
+        mutate(variable = mod$loadings %>% rownames()) %>% 	
+        gather(factor, loading, -variable) %>% 	
+        mutate(sign = if_else(loading >= 0, "positive", "negative"))	
+      
+      if(!is.null(loadings_above)){	
+        loadings_table[abs(loadings_table[,"loading"]) < loadings_above,"loading"] = NA	
+        loadings_table = loadings_table[!is.na(loadings_table[,"loading"]),]	
+      }	
+      
+      if(!is.null(axes)){	
+        
+        loadings_table = loadings_table %>% 	
+          filter(factor == paste0("V",axes))	
+      }	
+      
+      
+      plot = loadings_table %>% 	
+        ggplot() +	
+        aes(y = loading %>% abs(), x = reorder(variable, abs(loading)), fill = loading, label =       round(loading, 2)) +	
+        geom_col(position = "dodge") +	
+        scale_fill_gradient2() +	
+        coord_flip() +	
+        geom_label(color = "black", fill = "white", fontface = "bold", position = position_dodge(0.5)) +	
+        facet_wrap(~factor) +	
+        labs(y = "Loading strength", x = "Variable")	
+    }	
+  }	
+  
+  
+  
+  
+  
+  
+  return(plot)	
+  
+}	
+
+
+
+# Explore the data
+
+# Missing data
+
+colSums(is.na(data_animals))
+
+# Remove missing data
+
+view(data_animals$ar1)
+
+data_animals<-data_animals %>% 
+  drop_na(ar1)
+
+data_animals<-data_animals %>% 
+  drop_na(ar2)
+
+data_animals<-data_animals %>% 
+  drop_na(ar10) 
+
+data_animals<-data_animals %>% 
+  drop_na(ar14)
+
+data_animals<-data_animals %>% 
+  drop_na(ar18)
+
+data_animals<-data_animals %>% 
+  drop_na(ar19)
+
+data_animals<-data_animals %>% 
+  drop_na(ar22)
+
+data_animals<-data_animals %>% 
+  drop_na(sex)
+
+data_animals<-data_animals %>% 
+  drop_na(party)
+
+data_animals<-data_animals %>% 
+  drop_na(liberal)
+
+# Recode men as 1 and women as 0
+
+library(plyr)
+
+class(data_animals$sex)
+
+data_animals$sex<- revalue(as.factor(data_animals$sex), c( "1"= "0", "2"= "1"))
+
+data_animals$sex <- as.factor(data_animals$sex)
+
+# How many women and men are there in the data?
+
+table(data_animals$sex)
+
+# 120 women and 29 men, this is a somewhat strange distribution, the data can not be seen as a sample of the population becuse there are mostly women being asked.
+# Addiotionally, women are less conservative than men and have a greater interest in the rights of other outside of their own group. they also generally take on more responsibility and are used to taking care of others. This data is scewed and can not be seen as a proxy.
+# This can be solved in two ways, we can say that this is a survey being filled out voluntarily and therefore poeple who have an interest in animals rights have responded to a greater extent. The data is then a proxy for animal rights acivist and their view on the issue.
+# We can also exlude all men and say that the data is mesuring the attitudes on animal right on the female population.
+
+
+#This table shows that most poeple have put themlevs in the middle of the scale, when it comes to how liberal you are
+# to me that seems reasonable
+table(data_animals$liberal)
+
+
+# When looking at the party affiliation we see that the most people have put themselves in the box of not identifying with any of the parties, this also seems quite strange to me
+
+table(data_animals$party)
+
+# Looking at the data in general again
+describe(data_animals)
+
+str(data_animals)	
+
+summary(data_animals)	
+
+dim(data_animals)
+
+# Linear model with liberal as y and all questions as x
+
+firstlinearmodel = lm(liberal ~ ar1 + ar2 + ar3 + ar4 + ar5 + ar6 + ar7 + ar8 + ar9 + ar10 +	
+                    ar11 + ar12 + ar13 + ar14 + ar15 + ar16 + ar17 + ar18 + ar19 + ar20 +	
+                    ar21 + ar22 + ar23 + ar24 + ar25 + ar26 + ar27 + ar28,	
+                  data = data_animals)	
+
+summary(firstlinearmodel)	
+
+# doing a data frame with the ar's
+
+model_only_ar = data_animals %>% 	
+  select(ar1:ar28)
+
+view(model_only_ar)
+
+describe(model_only_ar)
+
+class(model_only_ar)
+
+class(data_animals)
+
+# Checking assumptions
+library(car)
+
+vif(firstlinearmodel)# Looking for collinarity. To see that we can do a EFA.
+
+VIF(firstlinearmodel)
+
+pairs.panels(data_animals)
+
+# Homoscedasticity och linearity, looks fine
+
+plot(firstlinearmodel, arg = "pearson")
+
+# Basically, looking at the data and checking assumptions I can see that many questions are very similair and cover similair topic. This and the colloniarity test leads me to belive that a dimention reduction could be good. This will make the latent theme behind the questions more clear and will combine simlair question to make a more straight forward analysis.
+
+# Three question have a stronger association with liberal, 4, 5, 10. Are 26 also shows to be a bit significant.
+
+# Boxplot of a vizualization of ar 4 as x and liberal as y.
+boxplot(data_animals$liberal~ data_animals$ar4)
+
+# Q5.It is wrong to wear leather jackets and pants on the x axel and liberal on the y.
+
+boxplot(data_animals$liberal~ data_animals$ar5)
+
+# Most poeple have no opinion on this. They again the most liberal. All the other boxes had around 2-3 on the liberal scale.
+
+# Q10.It is morally wrong to eat beef and other "red" meat.
+boxplot(data_animals$liberal~ data_animals$ar10)
+
+# Q26 It's morally wrong to eat chicken or fish. Again ppl who are less strongly opionated or think ppl should decide for themselves are score highest on the liberal scale.
+
+boxplot(data_animals$liberal~ data_animals$ar26)
+
+# It's not a linear curve on the y axel, but people in the middle are the most liberal and the more you have a strong opinion the less liberal ou seem to be.
+
+# the boxplot above shows that poeple never answeard strongly agreed on the question: A human has no right to use a horse as a means of transportation (riding) or 
+# entertainment (racing). In fact, most ppl said No opinion. The ppl that had on opinion were the most liberal and the people who said Agree were the least liberal.
+
+# Looking if the varibles correlate with each other :) 
+## multicolloniarity
+cor = model_only_ar %>% 	
+  cor()	
+
+cor	
+
+vif(firstlinearmodel)	
+
+# according to the vif-function all ar's are below 3 except for ar 15, which is 5. That's a bit problematic and I will look later if it ought to be removed.
+
+#Visualization of the ar varibles
+
+ggcorr(cor)	
+
+ggcorr(cor(model_only_ar))
+
+# The visualization above displays the questions and you can see that many of questions have negative answers, and some are posetive in their value. 
+# You need to look at how the questions actually are posed to see how to interpret them.
+# We have to look at the questions to interpret the visualization.
+
+# This visualization shows basically that some questions are related to each other
+
+cor(model_only_ar) %>% network_plot(min_cor=0.1)	
+
+# Creating a correlation matix, with the mixed cor function
+
+animal_mixed_cor. <- mixedCor(data_animals, c=NULL, p=1:2, correct =0)	
+data_animals_correl = animal_mixed_cor.$rho	
+
+
+# getting eigenvalues
+data_animals.pca<-princomp(data_animals)
+
+summary(data_animals.pca)
+
+get_eigenvalue(data_animals.pca)
+
+
+# Kaiser-Meyer-Olkin test, seeing if we can use efa as method :) TESTING FOR FACTORABILITY
+
+KMO(data_animals_correl)
+
+KMO(model_only_ar)
+
+# The KMO shows us that all items are over 0.6 which means that the are factorable. Both with the cor function and the mixed cor functions they are all above 0.6 :)
+
+# Factor extraction	
+
+# Checking for multivariate normal distribution, with mvnorm.kur.test() and mvnorm.skew.test() and mvn ()
+
+# Lower p-value of than 0.05, indicates the violation of the multivariate normality assumption.	
+
+library(CompQuadForm)	
+
+result <- mvn(data_animals[,1:28], mvnTest = "hz")	
+result$multivariateNormality	
+
+#            Test       HZ p value MVN
+#1 Henze-Zirkler 1.000901       0  NO
+
+result2 <- mvn(data_animals_correl[,1:28], mvnTest = "hz")	
+result2$multivariateNormality
+
+#           Test  HZ p value MVN
+#1 Henze-Zirkler 112       0  NO
+
+mvnorm.kur.test(na.omit(data_animals[,1:28]))	
+
+# Multivariate Normality Test Based on Kurtosis
+
+# W = 48.233, w1 = 0.14222, df1 = 405.00000, w2 = 0.26667, df2 = 1.00000, p-value = 0.9937
+
+mvnorm.skew.test(na.omit(data_animals[,1:28]))
+
+# 	Multivariate Normality Test Based on Kurtosis
+
+# data:  na.omit(data_animals[, 1:28])
+# W = 282.43, w1 = 0.14222, df1 = 405.00000, w2 = 0.26667, df2 = 1.00000, p-value = 7.732e-11
+
+# When doing these test I see that the p-value is very small which indicates that the the multivariate normality assumptions is bad/questioned/violated. 
+# Therefore the paf extraction method will be used to extract factors.
+
+### Factor extraction with paf
+
+EFA_model1 <- fa(data_animals_correl, nfactors = 2, fm="pa", SMC=FALSE)
+
+summary(EFA_model1)
+
+
+# Test of the hypothesis that 2 factors are sufficient.
+
+fa.parallel(data_animals_correl, n.obs = nrow(data_animals),	
+            fa = "fa", fm = "pa")
+
+# The above function says: "Parallel analysis suggests that the number of factors =  5  and the number of components =  NA" , according to this 5 factors should be in the model
+
+
+# parallel analysis, with paran command suggests 2 components.
+
+pca_ret = paran(model_only_ar, 	
+                graph = TRUE)	
+
+pca_ret$Retained	
+
+# Scree test. This says in contrast to the scree test that only two dimensions should be in the model. Basically it agrees with the fa-function.
+
+fviz_screeplot(data_animals.pca, addlabels = TRUE, ylim = c(0, 40))	 
+
+# This one also shows that dimension 1 is very influential and by level 7 it's below 4%. 
+# Sorted commonality 	
+EFA_mod1_common <- as.data.frame(sort(EFA_model1$communality, decreasing = TRUE))	
+EFA_mod1_common 
+mean(EFA_model1$communality)
+
+
+# When doing the test of communaity I'm considering removing ar 16, 25, 1, 22, 28 and 14. All of these have low commonality, below 0.4 and are poorly represented items in the EFA.
+
+#  mean(EFA_model1$communality)	
+# 0.5239986
+
+# Ta bort, 22, 9, 24 och 7?
+
+# Factor rotation
+
+# The default method of factor rotation is Direct Oblimin in the fa() function. Try  Promax and Varimax rotation. 
+
+
+EFA_model1$rotation
+
+EFA_mod_promax <- fa(data_animals_correl, nfactors = 5, fm="pa", rotate = "promax")
+
+summary(EFA_mod_promax)
+
+EFA_mod_varimax <- fa(data_animals_correl, nfactors = 4, fm="pa", rotate = "varimax")	# This one says, 2, 3 and 4 factors are okey. but not beyond that.
+
+EFA_mod_varimax2 <- fa(data_animals_correl, nfactors = 2, fm="pa", rotate = "varimax")
+
+summary(EFA_mod_varimax)
+
+### Looking at the results
+
+fa.diagram(EFA_model1) # This shows that there should be 2 dimensions. 
+
+### Vad visar den? # överst har vi olika frågor som har med djur och antroprocentrism och biocentrism att göra fråga: 8, 16, 24, 20, 12, 4. Fråga 20 är den minst ladade av dessa men också men den mest intetsägande. Den och fråga 8 som handlar om människans ansvar inför djur har högst för klaringskraft. Fråga 8 och 12 kan cokså va bra tt ta med.
+# Den andra kolumnen handlar om moral. frågan 14, 2, 18 , 26 och 10 är med. 18 och 10 har högst förklaringskraft och 10 har med moraliskt fel att äta djur och 18 handlar om att det är fel med animal testing. 2 och 26 kan också vara bra att ta med.
+# ta med frågan 25, 13 , 21 och 1. Dessa frågorna har lite att göra med vad är rimliga behov för människa och djur, fel med kosmetiska tester och hur får man bruka mark om de pajar för djur.
+# Ta med 5, 29 och 17. har med samma att göra som ovanstående. 
+
+
+fviz_loadnings_with_cor(EFA_model1, axes = 1, loadings_above = 0.2)	in. # MORAL-factors
+
+fviz_loadnings_with_cor(EFA_model1, axes = 2, loadings_above = 0.2)	#  bort ar 1, 8 och andra som har väldigt låg förklringsgrad. Sedan spara värdena och göra en linjär modell.
+# sedan ska du skriva rapporten. YAY, du har bestämt :)
+
+#
+
+fviz_loadnings_with_cor(EFA_mod_promax, axes = 1, loadings_above = 0.2)	### Nog dessa du ska använda. Något fel med ar5.
+
+fviz_loadnings_with_cor(EFA_mod_promax, axes = 2, loadings_above = 0.2)	
+
+fviz_loadnings_with_cor(EFA_mod_promax, axes = 3, loadings_above = 0.2)	
+
+fviz_loadnings_with_cor(EFA_mod_promax, axes = 4, loadings_above = 0.2)	
+
+fviz_loadnings_with_cor(EFA_mod_promax, axes = 5, loadings_above = 0.2)	
+
+
+view(data_animals$ar5)# this one has a 1.16 on the ar5. How is that possible? 
+
+fviz_loadnings_with_cor(EFA_mod_varimax, axes = 1, loadings_above = 0.2) # Denna handlar om hur människor får använda sig av/ ej av djur, förhållandet mellan oss.
+
+fviz_loadnings_with_cor(EFA_mod_varimax, axes = 2, loadings_above = 0.2)	
+
+fviz_loadnings_with_cor(EFA_mod_varimax, axes = 3, loadings_above = 0.2)	
+
+fviz_loadnings_with_cor(EFA_mod_varimax, axes = 4, loadings_above = 0.2)	# Denna variablen handlar om animal testing!!!!
+
+#
+fa.diagram(EFA_model1)
+#
+
+
+fviz_loadnings_with_cor(EFA_mod_varimax2, axes = 1, loadings_above = 0.1) #moral
+
+fviz_loadnings_with_cor(EFA_mod_varimax2, axes = 2, loadings_above = 0.1) #animal testing
+
+
+EFA_mod_vari22 <- fa(ny_dataanimals_correl, nfactors = 2, fm="pa", rotate = "varimax")
+
+EFA_mod_vari22
+
+summary(EFA_mod_vari22)
+
+
+
+# Making a new dataset that does not include the variables with the lowest level of explanation. To be able to checck assumptions and test for how many factors should be in the model.
+
+data_animals_2_utanlågavari<-data_animals
+view(data_animals_2_utanlågavari)
+
+data_animals_2_utanlågavari<- data_animals_2_utanlågavari %>% mutate(ar2 = as.numeric(ar2), 
+                                       ar3 = as.numeric(ar3), 
+                                       ar4 = as.numeric(ar4),
+                                       ar4 = as.numeric(ar4),
+                                       ar5 = as.numeric(ar5),
+                                       ar6 = as.numeric(ar6),
+                                       ar7 = as.numeric(ar7),
+                                       ar9 = as.numeric(ar9),
+                                       ar10 = as.numeric(ar10),
+                                       ar11 = as.numeric(ar11),
+                                       ar13 = as.numeric(ar13),
+                                       ar15 = as.numeric(ar15),
+                                       ar14= as.numeric(ar14),
+                                       ar16= as.numeric(ar16),
+                                       ar17= as.numeric(ar17),
+                                       ar18= as.numeric(ar18),
+                                       ar20= as.numeric(ar20),
+                                       ar21= as.numeric(ar21),
+                                       ar22=as.numeric(ar22),
+                                       ar23= as.numeric(ar23),
+                                       ar24=as.numeric(ar24),
+                                       ar26= as.numeric(ar26),
+                                       ar27=as.numeric(ar27),
+                                       ar28=as.numeric(ar28),
+                                       liberal= as.numeric(liberal))%>% select(ar2, 
+                                                                              ar3, 
+                                                                              ar4, 
+                                                                              ar5,
+                                                                              ar6, 
+                                                                              ar7,
+                                                                              ar9,
+                                                                              ar10,
+                                                                              ar11,
+                                                                              ar13,
+                                                                              ar14,
+                                                                              ar15,
+                                                                              ar16,
+                                                                              ar17,
+                                                                              ar18,
+                                                                              ar20,
+                                                                              ar21,
+                                                                              ar22,
+                                                                              ar23,
+                                                                              ar24,
+                                                                              ar26,
+                                                                              ar27,
+                                                                              ar28)
+                                                                                
+                                                                                
+     view(data_animals_2_utanlågavari)                                                                           
+# mixed data cor on new data                                                                            
+#animal_mixed_cor_nydata <- mixedCor(data_animals_2_utanlågavari, c=NULL, p=1:23, correct =0, global = FALSE, smooth = smoot)	
+data_animals_correl22 = animal_mixed_cor_nydata$rho	   
+
+# The same with the new dataset created after finishing the efa.
+#animal_mixed_cor_nydata<-mixedCor(data_animals_2_utanlågavari[,p=2:22, drop= FALSE], c=NULL, , correct = 0)
+#ny_dataanimals_correl = animal_mixed_cor_nydata$rho
+
+# data matrix with cor numbers on the new data with less varibles
+nydata_animals <- cor(data_animals_2_utanlågavari[,c(1:22)])
+
+view(data_animals_correl22)$cor
+
+# Get eigenvalues
+
+data.pca<-princomp(nydata_animals)
+
+pca.data<- princomp(data_animals_2_utanlågavari)
+
+plot(data.pca)
+
+# The factor loadings :)
+data.pca$loadings[,1:2]
+
+pca.data$coord
+
+summary(data_animals.pca)
+
+get_eigenvalue(data.pca)
+
+#KMO on new data
+KMO(nydata_animals)
+
+# With new data after efa. Factor extraction. Making the model.
+EFA_modell2<-fa(nydata_animals
+                , nfactors = 2, fm="pa", SMC = FALSE)
+
+summary(EFA_modell2)
+
+# new data
+
+nfactors(ny_dataanimals_correl, n.obs = nrow(data_animals_2_utanlågavari))	# this one says 1-2 factors.
+
+# New data.
+
+EFA_modell2_common <-as.data.frame(sort(EFA_modell2$communality, decreasing = TRUE))
+
+EFA_modell2_common
+
+mean(EFA_modell2$communality)
+
+# New data after efa. This a efa that tries the same model after exluding some items. This is the one used in the lab :) rotation oblim and 2 factors.
+
+fa.diagram(EFA_modell2) 
+
+summary(EFA_modell2)
+
+fviz_loadnings_with_cor(EFA_modell2, axes = 1, loadings_above = 0.2)	# moral, 16
+
+gather(factor, loading, -variable) %>%
+gather(factor, loading, -variable) %>%
+fviz_loadnings_with_cor(EFA_modell2, axes = 2, loadings_above = 0.2)	# animal testing, 12
+
+# Saving factor scores and naming them
+factorscorseaninal= factor.scores(data_animals[,-c(1, 12, 8, 19, 21, 25, 29, 30, 31 )], EFA_modell2)$scores
+colnames(factorscorseaninal)<- c( "morals", "animal_research")
+
+view(factorscorseaninal)
+# get the factors into the dataset
+
+finaldataanimals<- cbind(data_animals[,-c(1, 12, 8, 19, 21, 25 )], factorscorseaninal)
+
+view(finaldataanimals)
+
+# Final linear model
+
+finallmmodell = lm(liberal ~ morals + animal_research, data = finaldataanimals)
+
+summary(finallmmodell)
+
+### trying things
+
+
+# Ar5 som tillhör morals, ar 5.    It is wrong to wear leather jackets and pants. 
+# Ar 10 som också tillhör morals, ar 10.    It is morally wrong to eat beef and other "red" meat. 
+# Ar 26 som också tillhör morals, 26.    It is morally wrong to eat chicken and fish.
